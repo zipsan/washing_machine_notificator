@@ -3,7 +3,7 @@
 ## Requirements
 * Raspberry Pi
 * ADXL345
-* python3
+* python
 * `adxl345.py`
     * git clone https://github.com/pimoroni/adxl345-python
     * adxl345.pyをmain.pyと同じ階層に置く
