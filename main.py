@@ -1,16 +1,28 @@
 # -*- coding: utf-8 -*-
 import sys
 import time
+import logging
+import slack  # ./slack.py
 from adxl345 import ADXL345
 from datetime import datetime
+from logging import FileHandler, Formatter
 
 
-check_time = 2  # [sec]
-sleep_time = 0.1  # [sec]
-finish_time = 10  # [sec] この秒数間揺れがなかったら終了とみなす
-t_shake = 0.03
-t_count = 8  # max: check_time / sleep_time
-t_shake_count = 3
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+formatter = Formatter(fmt='%(asctime)s  %(message)s', datefmt='%Y/%m/%d %p %I:%M:%S',)
+file_handler = FileHandler('log.log', 'a+')
+file_handler.level = logging.INFO
+file_handler.formatter = formatter
+logger.addHandler(file_handler)
+
+check_time = 3  # [sec]  この秒数を1セットとする
+sleep_time = 0.1  # [sec]  この秒数分check_timeを刻む(*1)（check_time=3, sleep_time=0.1の場合30分割される）
+t_shake = 0.022  # 揺れたとみなす加速度の閾値
+t_count = 7  # (*1)で分割したうちこの数値分t_shakeを超えていたらそのセットが揺れたとみなされる(max: check_time / sleep_time)
+t_shake_count = 5  # 洗濯が開始されたとみなされるセット数
+finish_time = 360  # [sec] この秒数間揺れがなかったら終了とみなす
 
 queue_size = int(check_time / sleep_time)
 
@@ -39,13 +51,16 @@ def is_shaking():
 
 
 def write_char(c):
-    sys.stdout.write(c)
-    sys.stdout.flush()
+    # 揺れを記録するためのデバッグ用
+    #sys.stdout.write(c)
+    #sys.stdout.flush()
+    pass
 
 
 last_10_value = reset_list(base)
 last_10_check = reset_list(False)
 
+logger.info("Start")
 while True:
     axes = adxl345.getAxes(True)
     x = axes['x']
@@ -72,10 +87,12 @@ while True:
             shake_count += 1
             if shake_count >= t_shake_count:
                 write_char("S")
+                logger.info("detect shake")
                 measureing = True
                 start_time = datetime.now()  # 開始時間を記録
             else:
                 write_char("-")
+                pass
             interval_start_time = datetime.now()  # 最後の揺れ時間を記録する
 
         elif measureing and is_shaking():
@@ -89,6 +106,8 @@ while True:
             if timedelta.total_seconds() >= finish_time:
                 # 終了した
                 write_char("E")
+                logger.info("Finish!")
+                slack.post("洗濯終了だよ～")
                 measureing = False
                 last_10_check = reset_list(False)
                 last_10_value = reset_list(base)
